@@ -14,5 +14,5 @@ public class Reservation : BaseEntity {
     public int PartySize { get; set; } = 1;
     public string? Comment { get; set; }
 
-    public ReservationStatus Status { get; set; } = ReservationStatus.Pending;
+    public ReservationStatus Status { get; set; }
 }

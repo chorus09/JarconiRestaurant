@@ -7,7 +7,7 @@ namespace JarconiRestaurant.Domain.Users;
 public class User : BaseEntity {
     public string Email { get; set; } = default!;
     public string PasswordHash { get; set; } = default!;
-    public UserRole Role { get; set; } = UserRole.Client;
+    public UserRole Role { get; set; }
     public bool IsBlocked { get; set; }
 
     public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
