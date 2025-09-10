@@ -17,7 +17,7 @@ public class UserConfig : IEntityTypeConfiguration<User> {
 
         b.Property(x => x.Role)
             .HasConversion<int>()
-            .HasDefaultValue((int)UserRole.Client);
+            .HasDefaultValue(UserRole.Client);
 
         b.Property(x => x.IsBlocked).HasDefaultValue(false);
 

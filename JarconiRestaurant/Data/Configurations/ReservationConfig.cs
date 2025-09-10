@@ -18,7 +18,7 @@ public class ReservationConfig : IEntityTypeConfiguration<Reservation> {
 
         b.Property(x => x.Status)
             .HasConversion<int>()
-            .HasDefaultValue((int)ReservationStatus.Pending);
+            .HasDefaultValue(ReservationStatus.Pending);
 
         b.Property(x => x.CreatedAtUtc)
             .HasDefaultValueSql("timezone('utc', now())");
