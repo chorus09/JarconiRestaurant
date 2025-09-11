@@ -7,4 +7,5 @@ public class CreateReservationDto {
     public int DurationMin { get; set; } = 90;
     public int PartySize { get; set; } = 1;
     public string? Comment { get; set; }
+    public int? ForUserId { get; set; }
 }

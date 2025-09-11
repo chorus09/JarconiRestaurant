@@ -5,9 +5,12 @@ using JarconiRestaurant.Domain.Reservations;
 using JarconiRestaurant.DTOs.Reservations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace JarconiRestaurant.Controllers;
 
+[Authorize(Roles = "Client,Admin")]
 [ApiController]
 [Route("api/[controller]")]
 public class ReservationsController : ControllerBase {
@@ -15,7 +18,6 @@ public class ReservationsController : ControllerBase {
 
     public ReservationsController(AppDbContext db) => _db = db;
 
-    // Вспомогалка: пересечение интервалов
     private static bool Overlaps(DateTime aStart, int aDur, DateTime bStart, int bDur) {
         var aEnd = aStart.AddMinutes(aDur);
         var bEnd = bStart.AddMinutes(bDur);
@@ -25,13 +27,16 @@ public class ReservationsController : ControllerBase {
     // POST /api/reservations
     [HttpPost]
     public async Task<ActionResult<ReservationVm>> Create([FromBody] CreateReservationDto dto) {
+        var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var isAdmin = User.IsInRole("Admin");
+        var targetUserId = isAdmin && dto.ForUserId.HasValue ? dto.ForUserId.Value : currentUserId;
+
         if (dto.DateTimeStartUtc <= DateTime.UtcNow)
             return BadRequest("RESERVATION_PAST_DATETIME");
 
         if (dto.DurationMin is not (60 or 90 or 120))
             return BadRequest("RESERVATION_DURATION_INVALID");
 
-        // конфликты по столику
         var conflicts = await _db.Reservations
             .Where(r => r.TableNumber == dto.TableNumber &&
                         (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.Confirmed))
@@ -41,7 +46,7 @@ public class ReservationsController : ControllerBase {
             return Conflict("RESERVATION_CONFLICT");
 
         var entity = new Reservation {
-            UserId = dto.UserId,             // NOTE: потом возьмём из JWT
+            UserId = targetUserId,
             TableNumber = dto.TableNumber,
             DateTimeStartUtc = dto.DateTimeStartUtc,
             DurationMin = dto.DurationMin,
@@ -60,18 +65,20 @@ public class ReservationsController : ControllerBase {
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ReservationVm>> GetById([FromRoute] int id) {
         var r = await _db.Reservations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        var isAdmin = User.IsInRole("Admin");
+        var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!isAdmin && r.UserId != currentUserId) return Forbid("FORBIDDEN_NOT_OWNER");
         return r is null ? NotFound() : Ok(ToVm(r));
     }
 
     // GET /api/reservations/by-user/{userId}
-    // временно; после JWT будет /my
-    [HttpGet("by-user/{userId:int}")]
-    public async Task<ActionResult<IEnumerable<ReservationVm>>> ListByUser([FromRoute] int userId) {
+    [HttpGet("my")]
+    public async Task<ActionResult<IEnumerable<ReservationVm>>> My() {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var list = await _db.Reservations.AsNoTracking()
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.DateTimeStartUtc)
             .ToListAsync();
-
         return Ok(list.Select(ToVm));
     }
 
@@ -79,13 +86,15 @@ public class ReservationsController : ControllerBase {
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ReservationVm>> Update([FromRoute] int id, [FromBody] UpdateReservationDto dto) {
         var r = await _db.Reservations.FirstOrDefaultAsync(x => x.Id == id);
+
+        var isAdmin = User.IsInRole("Admin");
+        var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!isAdmin && r.UserId != currentUserId) return Forbid("FORBIDDEN_NOT_OWNER");
         if (r is null) return NotFound();
 
-        // дедлайн (2 часа) — простой пример
         if (r.DateTimeStartUtc - DateTime.UtcNow < TimeSpan.FromHours(2))
             return BadRequest("RESERVATION_DEADLINE_EXCEEDED");
 
-        // конфликты
         var sameTable = await _db.Reservations
             .Where(x => x.Id != id &&
                         x.TableNumber == dto.TableNumber &&
@@ -101,7 +110,6 @@ public class ReservationsController : ControllerBase {
         r.PartySize = dto.PartySize;
         r.Comment = dto.Comment;
 
-        // при изменении можно сбросить в Pending (если был Confirmed)
         if (r.Status == ReservationStatus.Confirmed)
             r.Status = ReservationStatus.Pending;
 
@@ -114,6 +122,9 @@ public class ReservationsController : ControllerBase {
     public async Task<IActionResult> Cancel([FromRoute] int id) {
         var r = await _db.Reservations.FirstOrDefaultAsync(x => x.Id == id);
         if (r is null) return NotFound();
+        var isAdmin = User.IsInRole("Admin");
+        var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (!isAdmin && r.UserId != currentUserId) return Forbid("FORBIDDEN_NOT_OWNER");
 
         if (r.DateTimeStartUtc - DateTime.UtcNow < TimeSpan.FromHours(2))
             return BadRequest("RESERVATION_DEADLINE_EXCEEDED");
@@ -123,7 +134,8 @@ public class ReservationsController : ControllerBase {
         return NoContent();
     }
 
-    // PATCH /api/reservations/{id}/confirm  (админский сценарий)
+    // PATCH /api/reservations/{id}/confirm
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{id:int}/confirm")]
     public async Task<IActionResult> Confirm([FromRoute] int id) {
         var r = await _db.Reservations.FirstOrDefaultAsync(x => x.Id == id);

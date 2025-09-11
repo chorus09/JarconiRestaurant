@@ -1,6 +1,7 @@
 ﻿using JarconiRestaurant.Data;
 using JarconiRestaurant.Domain.Menu;
 using JarconiRestaurant.DTOs.Menu;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,7 +46,8 @@ public class MenuController : ControllerBase {
         return Ok(categories.Where(c => c.Items.Any())); // скрываем пустые опубликованные категории
     }
 
-    // ADMIN: категории
+    // ADMIN: categories
+    [Authorize(Roles = "Admin")]
     [HttpPost("categories")]
     public async Task<IActionResult> CreateCategory([FromBody] CreateMenuCategoryDto dto) {
         var c = new MenuCategory { Name = dto.Name, SortOrder = dto.SortOrder, IsPublished = true };
@@ -54,7 +56,8 @@ public class MenuController : ControllerBase {
         return CreatedAtAction(nameof(Get), new { id = c.Id }, new { c.Id, c.Name, c.SortOrder, c.IsPublished });
     }
 
-    // ADMIN: позиции
+    // ADMIN: position
+    [Authorize(Roles = "Admin")]
     [HttpPost("items")]
     public async Task<IActionResult> CreateItem([FromBody] CreateMenuItemDto dto) {
         var exists = await _db.MenuCategories.AnyAsync(x => x.Id == dto.CategoryId);
@@ -75,12 +78,14 @@ public class MenuController : ControllerBase {
         return CreatedAtAction(nameof(GetItem), new { id = item.Id }, item);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("items/{id:int}")]
     public async Task<IActionResult> GetItem([FromRoute] int id) {
         var item = await _db.MenuItems.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         return item is null ? NotFound() : Ok(item);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("items/{id:int}")]
     public async Task<IActionResult> UpdateItem([FromRoute] int id, [FromBody] UpdateMenuItemDto dto) {
         var item = await _db.MenuItems.FirstOrDefaultAsync(x => x.Id == id);
@@ -98,6 +103,7 @@ public class MenuController : ControllerBase {
         return Ok(item);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("items/{id:int}")]
     public async Task<IActionResult> DeleteItem([FromRoute] int id) {
         var item = await _db.MenuItems.FirstOrDefaultAsync(x => x.Id == id);

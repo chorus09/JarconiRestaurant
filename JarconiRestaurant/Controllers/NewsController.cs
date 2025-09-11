@@ -1,6 +1,7 @@
 ﻿using JarconiRestaurant.Data;
 using JarconiRestaurant.Domain.News;
 using JarconiRestaurant.DTOs.News;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -57,6 +58,7 @@ public class NewsController : ControllerBase {
     }
 
     // ADMIN: POST /api/news
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateNewsDto dto) {
         var slug = string.IsNullOrWhiteSpace(dto.Slug)
@@ -81,6 +83,7 @@ public class NewsController : ControllerBase {
     }
 
     // ADMIN: PUT /api/news/{id}
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update([FromRoute] int id, [FromBody] UpdateNewsDto dto) {
         var post = await _db.NewsPosts.FirstOrDefaultAsync(x => x.Id == id);
@@ -95,6 +98,7 @@ public class NewsController : ControllerBase {
     }
 
     // ADMIN: PATCH /api/news/{id}/publish
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{id:int}/publish")]
     public async Task<IActionResult> Publish([FromRoute] int id) {
         var post = await _db.NewsPosts.FirstOrDefaultAsync(x => x.Id == id);
@@ -108,6 +112,7 @@ public class NewsController : ControllerBase {
     }
 
     // ADMIN: DELETE /api/news/{id}
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete([FromRoute] int id) {
         var post = await _db.NewsPosts.FirstOrDefaultAsync(x => x.Id == id);
